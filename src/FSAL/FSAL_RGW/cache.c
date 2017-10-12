@@ -37,7 +37,7 @@ size_t cache_total_length(struct cache_t *cache) {
     return length;
 }
 
-size_t cache_available_length(struct cache_t *cache) {
+size_t cache_consecutive_length(struct cache_t *cache) {
     size_t length = 0;
     struct glist_head *node = NULL;
     uint64_t last_offset = cache->offset;
@@ -55,7 +55,7 @@ size_t cache_available_length(struct cache_t *cache) {
     return length;
 }
 
-struct cache_t cache_get(struct cache_t *cache) {
+struct cache_t cache_consecutive_get(struct cache_t *cache) {
     struct cache_t result;
     result.offset = cache->offset;
     glist_init(&result.head);
