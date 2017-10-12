@@ -17,10 +17,11 @@ struct cache_t {
 };
 
 void cache_init(struct cache_t *cache);
-void cache_put(struct cache_t *cache, struct slice_t slice);
+void cache_put(struct cache_t *cache, struct slice_t *slice);
 int cache_empty(struct cache_t *cache);
 size_t cache_total_length(struct cache_t *cache);
 size_t cache_consecutive_length(struct cache_t *cache);
-struct cache_t cache_consecutive_get(struct cache_t *cache);
+void cache_consecutive_get(struct cache_t *cache, struct cache_t *result);
+void cache_print(struct cache_t *cache);
 
 #endif // FSAL_FSAL_RGW_CACHE_H

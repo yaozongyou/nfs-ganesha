@@ -1,4 +1,6 @@
 #include "cache.h"
+#include <inttypes.h>
+#include <stdio.h>
 
 void cache_init(struct cache_t *cache) {
     cache->offset = 0;
@@ -10,7 +12,13 @@ int slice_compare(struct glist_head *s1, struct glist_head *s2) {
     struct slice_t *node2 = glist_entry(s2, struct slice_t, node);
 
     if (node1->offset == node2->offset) {
-        return 0;
+        if (node1->length == node2->length) {
+            return 0;
+        } else if (node1->length > node2->length) {
+            return 1;
+        } else {
+            return -1;
+        }
     } else if (node1->offset > node2->offset) {
         return 1;
     } else {
@@ -18,8 +26,8 @@ int slice_compare(struct glist_head *s1, struct glist_head *s2) {
     }
 }
 
-void cache_put(struct cache_t *cache, struct slice_t slice) {
-    glist_insert_sorted(&cache->head, &slice.node, slice_compare);
+void cache_put(struct cache_t *cache, struct slice_t *slice) {
+    glist_insert_sorted(&cache->head, &slice->node, slice_compare);
 }
 
 int cache_empty(struct cache_t *cache) {
@@ -46,7 +54,7 @@ size_t cache_consecutive_length(struct cache_t *cache) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         if ((slice->offset <= last_offset) && 
                 (slice->offset + slice->length >= last_offset)) {
-            last_offset = slice->offset;
+            last_offset = slice->offset + slice->length;
             length += slice->length;
         } else {
             break;
@@ -55,10 +63,9 @@ size_t cache_consecutive_length(struct cache_t *cache) {
     return length;
 }
 
-struct cache_t cache_consecutive_get(struct cache_t *cache) {
-    struct cache_t result;
-    result.offset = cache->offset;
-    glist_init(&result.head);
+void cache_consecutive_get(struct cache_t *cache, struct cache_t *result) {
+    result->offset = cache->offset;
+    glist_init(&result->head);
     
     uint64_t last_offset = cache->offset;
     struct glist_head *node = NULL;
@@ -68,7 +75,7 @@ struct cache_t cache_consecutive_get(struct cache_t *cache) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         if ((slice->offset <= last_offset) && 
                 (slice->offset + slice->length >= last_offset)) {
-            last_offset = slice->offset;
+            last_offset = slice->offset + slice->length;
             cache->offset = slice->offset + slice->length;
         } else {
             break;
@@ -76,10 +83,18 @@ struct cache_t cache_consecutive_get(struct cache_t *cache) {
     }
 
     if (node != NULL) {
-        glist_split(&cache->head, &result.head, node);
-        glist_swap_lists(&cache->head, &result.head);
-        return result;
+        glist_split(&cache->head, &result->head, node);
+        glist_swap_lists(&cache->head, &result->head);
     }
+}
 
-    return result;
+void cache_print(struct cache_t *cache) {
+    printf("offset %" PRIu64 " ", cache->offset);
+
+    struct glist_head *node = NULL;
+    glist_for_each(node, &cache->head) {
+        struct slice_t *slice = glist_entry(node, struct slice_t, node);
+        printf("[%" PRIu64 " %zu %p] ", slice->offset, slice->length, slice->data);
+    }
+    printf("\n");
 }
