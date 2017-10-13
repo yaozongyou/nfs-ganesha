@@ -99,5 +99,6 @@ void cache_print(struct cache_t *cache) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         printf("[%" PRIu64 " %zu %p] ", slice->offset, slice->length, slice->data);
     }
+
     printf("\n");
 }
