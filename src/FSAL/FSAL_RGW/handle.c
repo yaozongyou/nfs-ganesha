@@ -840,8 +840,19 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 #endif
 			PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
 		}
+    
+        /* Handle may be reused, just free all memory for potential memory leak. */
+        struct glist_head *node = NULL;
+        struct glist_head *noden = NULL;
+        glist_for_each_safe(node, noden, &handle->cache.head) {
+            struct slice_t *slice = glist_entry(node, struct slice_t, node);
+            glist_del(&slice->node);
+            gsh_free(slice->data);
+            gsh_free(slice);
+        } 
 
         cache_init(&handle->cache);
+
 		rc = rgw_open(export->rgw_fs, handle->rgw_fh, posix_flags,
 			(!state) ? RGW_OPEN_FLAG_V3 : RGW_OPEN_FLAG_NONE);
 
