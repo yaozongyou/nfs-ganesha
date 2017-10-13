@@ -215,6 +215,8 @@ int construct_handle(struct rgw_export *export,
 
     cache_init(&constructing->cache);
 
+    PTHREAD_MUTEX_init(&constructing->mutex, NULL);
+
 	*obj = constructing;
 
 	return 0;
@@ -231,6 +233,9 @@ void deconstruct_handle(struct rgw_handle *obj)
         gsh_free(slice->data);
         gsh_free(slice);
     } 
+
+    cache_destroy(&obj->cache);
+    PTHREAD_MUTEX_destroy(&obj->mutex);
 
 	fsal_obj_handle_fini(&obj->handle);
 	gsh_free(obj);

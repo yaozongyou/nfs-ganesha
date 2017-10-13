@@ -1393,15 +1393,17 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
     LOG_MESSAGE("offset %" PRIu64 " total_length: %zu consecutive_length: %zu\n", 
             handle->cache.offset, cache_total_length(&handle->cache), cache_consecutive_length(&handle->cache));
 
+    PTHREAD_MUTEX_lock(&handle->mutex);
     size_t consecutive_length = cache_consecutive_length(&handle->cache);
     if (consecutive_length >= 10 * 1024 * 1024) {
         struct cache_t cache;        
         cache_consecutive_get(&handle->cache, &cache);
-    
+
         struct glist_head *node = NULL;
         struct glist_head *noden = NULL;
         glist_for_each_safe(node, noden, &cache.head) {
             struct slice_t *slice = glist_entry(node, struct slice_t, node);
+            LOG_MESSAGE("### offset %" PRIu64 " length %zu\n", slice->offset, slice->length);
             int rc = rgw_write(export->rgw_fs, handle->rgw_fh, slice->offset,
                     slice->length, wrote_amount, slice->data,
                     RGW_WRITE_FLAG_NONE);
@@ -1415,6 +1417,7 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
                     state, rc);
 
             if (rc < 0) {
+                PTHREAD_MUTEX_unlock(&handle->mutex);
                 return rgw2fsal_error(rc);
             }
         }
@@ -1422,10 +1425,13 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
         if (*fsal_stable) {
             int rc = rgw_fsync(export->rgw_fs, handle->rgw_fh,
                     RGW_WRITE_FLAG_NONE);
-            if (rc < 0)
+            if (rc < 0) {
+                PTHREAD_MUTEX_unlock(&handle->mutex);
                 return rgw2fsal_error(rc);
+            }
         }
     }
+    PTHREAD_MUTEX_unlock(&handle->mutex);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
@@ -1524,6 +1530,8 @@ fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
     LOG_MESSAGE("total_length: %zu consecutive_length: %zu\n", 
             cache_total_length(&handle->cache), cache_consecutive_length(&handle->cache));
 
+    PTHREAD_MUTEX_lock(&handle->mutex);
+    
     struct cache_t cache;        
     cache_consecutive_get(&handle->cache, &cache);
 
@@ -1547,9 +1555,11 @@ fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
                 state, rc);
 
         if (rc < 0) {
+            PTHREAD_MUTEX_unlock(&handle->mutex);
             return rgw2fsal_error(rc);
         }
     }
+    PTHREAD_MUTEX_unlock(&handle->mutex);
 
 	if (state) {
 		open_state = (struct rgw_open_state *) state;

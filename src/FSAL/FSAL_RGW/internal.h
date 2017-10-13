@@ -100,6 +100,9 @@ struct rgw_handle {
 	fsal_openflags_t openflags;
 
     struct cache_t cache;
+
+    /* a mutex to make sure the call for rgw_write is consective. */
+    pthread_mutex_t mutex;
 };
 
 /**

@@ -3,8 +3,13 @@
 #include <stdio.h>
 
 void cache_init(struct cache_t *cache) {
+    PTHREAD_RWLOCK_init(&cache->lock, NULL);
     cache->offset = 0;
     glist_init(&cache->head);
+}
+
+void cache_destroy(struct cache_t *cache) {
+    PTHREAD_RWLOCK_destroy(&cache->lock);
 }
 
 int slice_compare(struct glist_head *s1, struct glist_head *s2) {
@@ -27,14 +32,20 @@ int slice_compare(struct glist_head *s1, struct glist_head *s2) {
 }
 
 void cache_put(struct cache_t *cache, struct slice_t *slice) {
+    PTHREAD_RWLOCK_wrlock(&cache->lock);
     glist_insert_sorted(&cache->head, &slice->node, slice_compare);
+    PTHREAD_RWLOCK_unlock(&cache->lock);
 }
 
 int cache_empty(struct cache_t *cache) {
-    return glist_empty(&cache->head);
+    PTHREAD_RWLOCK_rdlock(&cache->lock);
+    int result = glist_empty(&cache->head);
+    PTHREAD_RWLOCK_unlock(&cache->lock);
+    return result;
 }
 
 size_t cache_total_length(struct cache_t *cache) {
+    PTHREAD_RWLOCK_rdlock(&cache->lock);
     size_t length = 0;
     struct glist_head *node = NULL;
 
@@ -42,10 +53,12 @@ size_t cache_total_length(struct cache_t *cache) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         length += slice->length;
     }
+    PTHREAD_RWLOCK_unlock(&cache->lock);
     return length;
 }
 
 size_t cache_consecutive_length(struct cache_t *cache) {
+    PTHREAD_RWLOCK_rdlock(&cache->lock);
     size_t length = 0;
     struct glist_head *node = NULL;
     uint64_t last_offset = cache->offset;
@@ -60,10 +73,12 @@ size_t cache_consecutive_length(struct cache_t *cache) {
             break;
         }
     }
+    PTHREAD_RWLOCK_unlock(&cache->lock);
     return length;
 }
 
 void cache_consecutive_get(struct cache_t *cache, struct cache_t *result) {
+    PTHREAD_RWLOCK_wrlock(&cache->lock);
     result->offset = cache->offset;
     glist_init(&result->head);
     
@@ -89,9 +104,11 @@ void cache_consecutive_get(struct cache_t *cache, struct cache_t *result) {
         }
         glist_swap_lists(&cache->head, &result->head);
     }
+    PTHREAD_RWLOCK_unlock(&cache->lock);
 }
 
 void cache_print(struct cache_t *cache) {
+    PTHREAD_RWLOCK_rdlock(&cache->lock);
     printf("offset %" PRIu64 " ", cache->offset);
 
     struct glist_head *node = NULL;
@@ -101,4 +118,5 @@ void cache_print(struct cache_t *cache) {
     }
 
     printf("\n");
+    PTHREAD_RWLOCK_unlock(&cache->lock);
 }
