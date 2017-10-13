@@ -35,7 +35,6 @@
 #include "internal.h"
 #include "nfs_exports.h"
 #include "FSAL/fsal_commonlib.h"
-#include "log_message.h"
 
 /**
  * @brief Release an object
@@ -752,7 +751,6 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 			struct attrlist *attrs_out,
 			bool *caller_perm_check)
 {
-    LOG_MESSAGE("enter rgw_fsal_open2\n");
 	int posix_flags = 0;
 	int rc;
 	mode_t unix_mode;
@@ -799,10 +797,8 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 	}
 
 	if (!name) {
-        LOG_MESSAGE("aaa\n");
 		/* This is an open by handle */
 		if (state) {
-            LOG_MESSAGE("111\n");
 			/* Prepare to take the share reservation, but only if we
 			 * are called with a valid state (if state is NULL the
 			 * caller is a stateless create such as NFS v3 CREATE).
@@ -828,7 +824,6 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 
 			PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
 		} else {
-            LOG_MESSAGE("222\n");
 			/* RGW doesn't have a file descriptor/open abstraction,
 			 * and actually forbids concurrent opens;  This is
 			 * where more advanced FSALs would fall back to using
@@ -933,8 +928,6 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 		return status;
 	} /* !name */
         
-    LOG_MESSAGE("bbb\n");
-
 	/* In this path where we are opening by name, we can't check share
 	 * reservation yet since we don't have an object_handle yet. If we
 	 * indeed create the object handle (there is no race with another
@@ -998,8 +991,6 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 		unix_mode = 0600;
 	}
     
-    LOG_MESSAGE("ccc\n");
-
 	memset(&st, 0, sizeof(struct stat)); /* XXX needed? */
 
 	st.st_uid = op_ctx->creds->caller_uid;
@@ -1052,7 +1043,6 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 	created = (posix_flags & O_EXCL) != 0;
 	*caller_perm_check = false;
 
-    LOG_MESSAGE("ddd\n");
 	construct_handle(export, rgw_fh, &st, &obj);
 
 	/* here FSAL_CEPH operates on its (for RGW non-existent) global
@@ -1366,7 +1356,6 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
 			bool *fsal_stable,
 			struct io_info *info)
 {
-    LOG_MESSAGE("enter rgw_fsal_write2 %p offset %"PRIu64" buffer_size %zd\n", obj_hdl, offset, buffer_size);
 	struct rgw_export *export =
 		container_of(op_ctx->fsal_export, struct rgw_export, export);
 
@@ -1390,9 +1379,6 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
     cache_put(&handle->cache, slice);
     *wrote_amount = buffer_size;
 
-    LOG_MESSAGE("offset %" PRIu64 " total_length: %zu consecutive_length: %zu\n", 
-            handle->cache.offset, cache_total_length(&handle->cache), cache_consecutive_length(&handle->cache));
-
     PTHREAD_MUTEX_lock(&handle->mutex);
     size_t consecutive_length = cache_consecutive_length(&handle->cache);
     if (consecutive_length >= 10 * 1024 * 1024) {
@@ -1403,7 +1389,6 @@ fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
         struct glist_head *noden = NULL;
         glist_for_each_safe(node, noden, &cache.head) {
             struct slice_t *slice = glist_entry(node, struct slice_t, node);
-            LOG_MESSAGE("### offset %" PRIu64 " length %zu\n", slice->offset, slice->length);
             int rc = rgw_write(export->rgw_fs, handle->rgw_fh, slice->offset,
                     slice->length, wrote_amount, slice->data,
                     RGW_WRITE_FLAG_NONE);
@@ -1514,7 +1499,6 @@ struct state_t *rgw_alloc_state(struct fsal_export *exp_hdl,
 fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
 			struct state_t *state)
 {
-    LOG_MESSAGE("enter rgw_fsal_close2 %p\n", obj_hdl);
 	int rc;
 	struct rgw_open_state *open_state;
 
@@ -1526,9 +1510,6 @@ fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
 
 	LogFullDebug(COMPONENT_FSAL,
 		"%s enter obj_hdl %p state %p", __func__, obj_hdl, state);
-
-    LOG_MESSAGE("total_length: %zu consecutive_length: %zu\n", 
-            cache_total_length(&handle->cache), cache_consecutive_length(&handle->cache));
 
     PTHREAD_MUTEX_lock(&handle->mutex);
     
@@ -1543,9 +1524,6 @@ fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
         int rc = rgw_write(export->rgw_fs, handle->rgw_fh, slice->offset,
                 slice->length, &wrote_amount, slice->data,
                 RGW_WRITE_FLAG_NONE);
-        LOG_MESSAGE("rgw_write offset %" PRIu64 " length %zd wrote_amount %zd rc %d\n", 
-                slice->offset, slice->length, wrote_amount, rc);
-
         glist_del(node);
         gsh_free(slice->data);
         gsh_free(slice);
@@ -1586,7 +1564,6 @@ fsal_status_t rgw_fsal_close2(struct fsal_obj_handle *obj_hdl,
 	}
 
 	rc = rgw_close(export->rgw_fs, handle->rgw_fh, RGW_CLOSE_FLAG_NONE);
-    LOG_MESSAGE("rgw_close %d\n", rc);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
