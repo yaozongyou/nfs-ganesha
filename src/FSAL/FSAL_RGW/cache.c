@@ -69,21 +69,24 @@ void cache_consecutive_get(struct cache_t *cache, struct cache_t *result) {
     
     uint64_t last_offset = cache->offset;
     struct glist_head *node = NULL;
-    struct glist_head *noden = NULL;
+    struct glist_head *last_node = NULL;
 
-    glist_for_each_safe(node, noden, &cache->head) {
+    glist_for_each (node, &cache->head) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         if ((slice->offset <= last_offset) && 
                 (slice->offset + slice->length >= last_offset)) {
             last_offset = slice->offset + slice->length;
             cache->offset = slice->offset + slice->length;
+            last_node = node;
         } else {
             break;
         }
     }
 
-    if (node != NULL) {
-        glist_split(&cache->head, &result->head, node);
+    if (last_node != NULL) {
+        if (last_node->next != &cache->head) {
+            glist_split(&cache->head, &result->head, last_node->next);
+        }
         glist_swap_lists(&cache->head, &result->head);
     }
 }

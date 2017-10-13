@@ -213,6 +213,8 @@ int construct_handle(struct rgw_export *export,
 
 	constructing->export = export;
 
+    cache_init(&constructing->cache);
+
 	*obj = constructing;
 
 	return 0;
