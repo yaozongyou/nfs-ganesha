@@ -5,6 +5,7 @@
 void cache_init(struct cache_t *cache) {
     PTHREAD_RWLOCK_init(&cache->lock, NULL);
     cache->offset = 0;
+    cache->total_length = 0;
     glist_init(&cache->head);
 }
 
@@ -33,7 +34,9 @@ int slice_compare(struct glist_head *s1, struct glist_head *s2) {
 
 void cache_put(struct cache_t *cache, struct slice_t *slice) {
     PTHREAD_RWLOCK_wrlock(&cache->lock);
+    // TODO: insert sorted searching from end to begin to improve performance.
     glist_insert_sorted(&cache->head, &slice->node, slice_compare);
+    cache->total_length += slice->length;
     PTHREAD_RWLOCK_unlock(&cache->lock);
 }
 
@@ -44,8 +47,7 @@ int cache_empty(struct cache_t *cache) {
     return result;
 }
 
-size_t cache_total_length(struct cache_t *cache) {
-    PTHREAD_RWLOCK_rdlock(&cache->lock);
+size_t cache_total_length_helper(struct cache_t *cache) {
     size_t length = 0;
     struct glist_head *node = NULL;
 
@@ -53,8 +55,14 @@ size_t cache_total_length(struct cache_t *cache) {
         struct slice_t *slice = glist_entry(node, struct slice_t, node);
         length += slice->length;
     }
-    PTHREAD_RWLOCK_unlock(&cache->lock);
     return length;
+}
+
+size_t cache_total_length(struct cache_t *cache) {
+    PTHREAD_RWLOCK_rdlock(&cache->lock);
+    size_t total_length = cache->total_length;
+    PTHREAD_RWLOCK_unlock(&cache->lock);
+    return total_length;
 }
 
 size_t cache_consecutive_length(struct cache_t *cache) {
@@ -103,13 +111,17 @@ void cache_consecutive_get(struct cache_t *cache, struct cache_t *result) {
             glist_split(&cache->head, &result->head, last_node->next);
         }
         glist_swap_lists(&cache->head, &result->head);
+
+        /* recalculate total length */
+        cache->total_length = cache_total_length_helper(cache);
+        result->total_length = cache_total_length_helper(result);
     }
     PTHREAD_RWLOCK_unlock(&cache->lock);
 }
 
 void cache_print(struct cache_t *cache) {
     PTHREAD_RWLOCK_rdlock(&cache->lock);
-    printf("offset %" PRIu64 " ", cache->offset);
+    printf("offset %" PRIu64 " total_length %zu ", cache->offset, cache->total_length);
 
     struct glist_head *node = NULL;
     glist_for_each(node, &cache->head) {
